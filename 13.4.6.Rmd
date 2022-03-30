@@ -1,0 +1,158 @@
+---
+title: "Assignment1 Joins"
+author: "Chintan Nayak"
+date: "08/02/2022"
+output: html_document
+---
+
+```{r}
+install.packages('nycflights13')
+```
+```{r}
+library(tidyverse)
+library(dplyr)
+library(nycflights13)
+library(ggplot2)
+```
+##13.4.6
+
+##1. Compute the average delay by destination, then join on the airports data frame so you can show the spatial distribution of delays. Here’s an easy way to draw a map of the United States:
+
+```{r}
+airports %>%
+  semi_join(flights, c("faa" = "dest")) %>%
+  ggplot(aes(lon, lat)) +
+    borders("state") +
+    geom_point() +
+    coord_quickmap()
+```
+
+```{r}
+AvgDestDelays = flights %>%
+  group_by(dest) %>%
+  summarise(delay = mean(arr_delay, na.rm = TRUE)) %>%
+  inner_join(airports, by = c(dest = "faa"))
+```
+
+
+```{r}
+AvgDestDelays
+```
+```{r}
+  ggplot(AvgDestDelays, aes(lon, lat, colour = delay)) +
+  borders("state") +
+  geom_point() +
+  coord_quickmap()
+```
+
+##2. Add the location of the origin and destination (i.e. the lat and lon) to flights.
+
+```{r}
+airportLoc <- airports %>%
+  select(faa, lat, lon)
+
+flights %>%
+  select(year:day, hour, origin, dest) %>%
+  left_join(
+    airportLoc,
+    by = c("origin" = "faa")
+  ) %>%
+  left_join(
+    airportLoc,
+    by = c("dest" = "faa")
+  )
+
+```
+
+##3. Is there a relationship between the age of a plane and its delays?
+
+```{r}
+plane_age = inner_join(flights,
+  select(planes, tailnum, plane_year = year),
+  by = "tailnum"
+) %>%
+  mutate(age = year - plane_year) %>%
+  filter(!is.na(age)) %>%
+  group_by(age) %>%
+  summarise(
+    dep_delay_mean = mean(dep_delay, na.rm = TRUE),
+    dep_delay_sd = sd(dep_delay, na.rm = TRUE),
+    arr_delay_mean = mean(arr_delay, na.rm = TRUE),
+    arr_delay_sd = sd(arr_delay, na.rm = TRUE),
+    n_arr_delay = sum(!is.na(arr_delay)),
+    n_dep_delay = sum(!is.na(dep_delay))
+  )
+```
+
+
+```{r}
+plane_age
+```
+# Mean departure delay
+```{r}
+ggplot(plane_age, aes(x = age, y = dep_delay_mean)) +
+  geom_point() +
+  scale_x_continuous("Age of plane (years)", breaks = seq(0, 60, by = 10)) +
+  scale_y_continuous("Mean Departure Delay (minutes)")
+```
+#mean arrival delay
+```{r}
+ggplot(plane_age, aes(x = age, y = arr_delay_mean)) +
+  geom_point() +
+  scale_x_continuous("Age of Plane (years)", breaks = seq(0, 60, by = 10)) +
+  scale_y_continuous("Mean Arrival Delay (minutes)")
+```
+#There is a increase in both the delays until 10 years, then  there is a decrease in both the dalay
+
+
+##4. What weather conditions make it more likely to see a delay?
+
+```{r}
+flightWeather= flights %>%
+  inner_join(weather, by = c(
+    "origin" = "origin",
+    "year" = "year",
+    "month" = "month",
+    "day" = "day",
+    "hour" = "hour"
+  ))
+```
+
+```{r}
+flightWeather
+```
+```{r}
+flightWeather %>%
+  group_by(precip) %>%
+  summarise(delay = mean(dep_delay, na.rm = TRUE)) %>%
+  ggplot(aes(x = precip, y = delay)) +
+  geom_line() + geom_point()
+
+```
+#A delay is connected with almost any amount of precipitation.
+
+```{r}
+flightWeather %>%
+  mutate(visib_cat = cut_interval(visib, n = 10)) %>%
+  group_by(visib_cat) %>%
+  summarise(dep_delay = mean(dep_delay, na.rm = TRUE)) %>%
+  ggplot(aes(x = visib_cat, y = dep_delay)) +
+  geom_point()
+```
+#Visibility appears to have a stronger link with delay. Delays are higher when visibility is less than 2 miles.
+
+##5. What happened on June 13 2013? Display the spatial pattern of delays, and then use Google to cross-reference with the weather.
+
+```{r}
+flights %>%
+  filter(year == 2013, month == 6, day == 13) %>%
+  group_by(dest) %>%
+  summarise(delay = mean(arr_delay, na.rm = TRUE)) %>%
+  inner_join(airports, by = c("dest" = "faa")) %>%
+  ggplot(aes(y = lat, x = lon, colour = delay)) +
+  borders("state") +
+  geom_point() +
+  coord_quickmap()
+
+```
+
